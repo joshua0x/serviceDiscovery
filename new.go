@@ -4,7 +4,6 @@ import (
 	"net/rpc"
 	//"github.com/silenceper/pool"
 	"github.com/joshua0x/pool"
-	"github.com/keepeye/logrus-filename"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	//"github.com/samuel/go-zookeeper/zk"
@@ -23,7 +22,7 @@ const (
 var pconf *pool.Config
 
 type PoolOptions struct {
-	MaxCap, InitialCap int
+	MaxCap, InitialCap,MaxIdle int
 }
 type SdConfig struct {
 	Zkc   ZkConfig
@@ -39,11 +38,6 @@ type Client struct {
 	sync.RWMutex
 }
 
-func init() {
-	filenameHook := filename.NewHook()
-	filenameHook.Field = "line"
-	log.AddHook(filenameHook)
-}
 
 // init Client ,zoo  sel_ip
 //转发 selector
@@ -87,10 +81,10 @@ func (client *Client) Call(serviceMethod string, args interface{}, reply interfa
 	} else {
 		client.RUnlock()
 		client.Lock()
-		log.Debug("newChanPool ", nodeAddr)
+		log.Debugf("newChanPool %v %v\n", nodeAddr,pconf)
 		//newPool paras configs  func defines  ___ Dial  func called  pool
 		conf := &pool.Config{InitialCap: pconf.InitialCap, MaxCap: pconf.MaxCap,
-			Factory: connFac(nodeAddr), Close: rpcClose}
+			Factory: connFac(nodeAddr), Close: rpcClose,MaxIdle:pconf.MaxIdle}
 		p, e := pool.NewChannelPool(conf)
 		if e != nil {
 			log.Error(e)
@@ -119,7 +113,7 @@ func (client *Client) Call(serviceMethod string, args interface{}, reply interfa
 
 func New(config *SdConfig) *Client {
 	//zks watch mecha synced
-	pconf = &pool.Config{InitialCap: config.PoolC.InitialCap, MaxCap: config.PoolC.MaxCap}
+	pconf = &pool.Config{InitialCap: config.PoolC.InitialCap, MaxCap: config.PoolC.MaxCap,MaxIdle:config.PoolC.MaxIdle}
 	zoo := newZoo(&config.Zkc)
 	client := Client{zoo: zoo, srvMap: make(map[string]pool.Pool)}
 	go client.watch()
