@@ -78,7 +78,7 @@ func (client *Client) Call(serviceMethod string, args interface{}, reply interfa
 			//p.Close()
 			err :=  cli.Call(serviceMethod,args,reply)
 			if err != nil {
-				//p.Close(iv)
+				p.Close(iv)
 				return err
 			}
 			p.Put(iv)
@@ -107,7 +107,7 @@ func (client *Client) Call(serviceMethod string, args interface{}, reply interfa
 			err := cli.Call(serviceMethod,args,reply)
 			//todo conn err close conn
 			if err != nil {
-				//p.Close(iv)
+				p.Close(iv)
 				return err
 			}
 			p.Put(iv)
