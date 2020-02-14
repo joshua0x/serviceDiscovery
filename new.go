@@ -5,7 +5,6 @@ import (
 	//"github.com/silenceper/pool"
 	"github.com/joshua0x/pool"
 	log "github.com/sirupsen/logrus"
-	//"github.com/fatih/pool"
 	"github.com/pkg/errors"
 	"github.com/keepeye/logrus-filename"
 	//"github.com/samuel/go-zookeeper/zk"
@@ -57,7 +56,6 @@ func (client *Client) Call(serviceMethod string, args interface{}, reply interfa
 	)
 
 	client.RLock()
-	defer client.RUnlock()
 	//todo error_retry
 	if selector == Designate {
 		nodeAddr = selPara
@@ -71,6 +69,7 @@ func (client *Client) Call(serviceMethod string, args interface{}, reply interfa
 	//load cache or
 	log.Info("nodeAddr",nodeAddr)
 	if p,exist := client.srvMap[nodeAddr] ; exist {
+		client.RUnlock()
 		iv,err := p.Get()
 		if err != nil {
 			return err
@@ -78,19 +77,28 @@ func (client *Client) Call(serviceMethod string, args interface{}, reply interfa
 			cli = iv.(*rpc.Client)
 			//p.Close()
 			err :=  cli.Call(serviceMethod,args,reply)
+			if err != nil {
+				//p.Close(iv)
+				return err
+			}
 			p.Put(iv)
 			return err
 		}
 	}else{
+		client.RUnlock()
+		client.Lock()
+		log.Info("newChanPool ",nodeAddr)
 		//newPool paras configs  func defines  ___ Dial  func called  pool
 		conf := &pool.Config{InitialCap:pconf.InitialCap,MaxCap:pconf.MaxCap,WaitTimeOut:pconf.WaitTimeOut,
 				Factory:connFac(nodeAddr),Close:rpcClose}
 		p,e := pool.NewChannelPool(conf)
 		if e != nil {
 			log.Error(e)
+			client.Unlock()
 			return e
 		}
 		client.srvMap[nodeAddr] = p
+		client.Unlock()
 		iv,err := p.Get()
 		if err != nil {
 			return e
@@ -99,7 +107,7 @@ func (client *Client) Call(serviceMethod string, args interface{}, reply interfa
 			err := cli.Call(serviceMethod,args,reply)
 			//todo conn err close conn
 			if err != nil {
-				cli.Close()
+				//p.Close(iv)
 				return err
 			}
 			p.Put(iv)
