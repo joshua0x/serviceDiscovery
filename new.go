@@ -2,13 +2,14 @@ package serviceDiscovery
 
 import (
 	"net/rpc"
-	"github.com/silenceper/pool"
+	//"github.com/silenceper/pool"
+	"github.com/joshua0x/pool"
 	log "github.com/sirupsen/logrus"
 	//"github.com/fatih/pool"
 	"github.com/pkg/errors"
 	"github.com/keepeye/logrus-filename"
 	//"github.com/samuel/go-zookeeper/zk"
-
+	"time"
 	"sync"
 	"math/rand"
 )
@@ -19,6 +20,16 @@ const (
 	Random int = iota
 	Designate
 )
+var pconf *pool.Config
+
+type PoolOptions struct {
+	MaxCap ,InitialCap int
+	WaitTimeOut time.Duration
+}
+type SdConfig struct {
+	Zkc ZkConfig
+	PoolC PoolOptions
+}
 
 type Client struct {
 	//rpc Call Do concurs pools  interfaces
@@ -62,7 +73,7 @@ func (client *Client) Call(serviceMethod string, args interface{}, reply interfa
 	if p,exist := client.srvMap[nodeAddr] ; exist {
 		iv,err := p.Get()
 		if err != nil {
-			return errors.New("srv down")
+			return err
 		}else{
 			cli = iv.(*rpc.Client)
 			//p.Close()
@@ -72,20 +83,25 @@ func (client *Client) Call(serviceMethod string, args interface{}, reply interfa
 		}
 	}else{
 		//newPool paras configs  func defines  ___ Dial  func called  pool
-		conf := &pool.Config{InitialCap:10,MaxCap:20,Factory:connFac(nodeAddr),Close:rpcClose}
+		conf := &pool.Config{InitialCap:pconf.InitialCap,MaxCap:pconf.MaxCap,WaitTimeOut:pconf.WaitTimeOut,
+				Factory:connFac(nodeAddr),Close:rpcClose}
 		p,e := pool.NewChannelPool(conf)
 		if e != nil {
 			log.Error(e)
-			return errors.New("srv down")
+			return e
 		}
 		client.srvMap[nodeAddr] = p
 		iv,err := p.Get()
 		if err != nil {
-			return errors.New("srv down")
+			return e
 		}else{
 			cli = iv.(*rpc.Client)
 			err := cli.Call(serviceMethod,args,reply)
 			//todo conn err close conn
+			if err != nil {
+				cli.Close()
+				return err
+			}
 			p.Put(iv)
 			return err
 		}
@@ -94,9 +110,10 @@ func (client *Client) Call(serviceMethod string, args interface{}, reply interfa
 }
 
 
-func New(config *ZkConfig) *Client{
+func New(config *SdConfig) *Client{
 	//zks watch mecha synced
-	zoo := newZoo(config)
+	pconf = &pool.Config{InitialCap:config.PoolC.InitialCap,MaxCap:config.PoolC.MaxCap,WaitTimeOut:config.PoolC.WaitTimeOut}
+	zoo := newZoo(&config.Zkc)
 	client := Client{zoo:zoo,srvMap:make(map[string]pool.Pool)}
 	go client.watch()
 	return &client
@@ -111,7 +128,7 @@ func (client *Client) watch(){
 			client.Lock()
 			client.zoo.nodeList = *data
 			//del srvCaches []str
-			for k,_ := range client.srvMap{
+			for k,p := range client.srvMap{
 				found := false
 				for _,node := range *data{
 					if node == k {
@@ -121,6 +138,8 @@ func (client *Client) watch(){
 				}
 				if !found{
 					delete(client.srvMap,k)
+					//todo ReleaseConn
+					p.Release()
 				}
 			}
 			log.Infof("client.node %v\n",client.zoo.nodeList)

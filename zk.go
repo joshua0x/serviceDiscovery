@@ -9,6 +9,8 @@ import (
 )
 
 var zkConn *zk.Conn
+
+
 //patched srvs  srvlist
 // basePath
 type ZkConfig struct {
