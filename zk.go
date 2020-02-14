@@ -1,59 +1,55 @@
 package serviceDiscovery
 
 import (
-	"github.com/samuel/go-zookeeper/zk"
-	"time"
-	log "github.com/sirupsen/logrus"
 	"errors"
+	"github.com/samuel/go-zookeeper/zk"
+	log "github.com/sirupsen/logrus"
 	"strings"
+	"time"
 )
 
 var zkConn *zk.Conn
 
-
 //patched srvs  srvlist
 // basePath
 type ZkConfig struct {
-	Addr []string
+	Addr     []string
 	BasePath string // for watch /im/test/123 base = /im srv=test
 }
 
-
-
 //replaced
 type ZooKeeper struct {
-	zkConn *zk.Conn
+	zkConn   *zk.Conn
 	basepath string
 	nodeList []string
-	ch chan *[]string
+	ch       chan *[]string
 }
 
-func NewZooRegister(config *ZkConfig) *ZooKeeper{
+func NewZooRegister(config *ZkConfig) *ZooKeeper {
 	var err error
-	zkConn ,_,err = zk.Connect(config.Addr,time.Second*10)
+	zkConn, _, err = zk.Connect(config.Addr, time.Second*10)
 	if err != nil {
 		log.Panic(err)
 	}
 	createPath(config.BasePath)
-	zoo := &ZooKeeper{zkConn:zkConn,basepath:config.BasePath}
+	zoo := &ZooKeeper{zkConn: zkConn, basepath: config.BasePath}
 	return zoo
-	}
+}
 
-func newZoo(config *ZkConfig) *ZooKeeper{
+func newZoo(config *ZkConfig) *ZooKeeper {
 	//init conn path_create
 	var err error
-	zkConn ,_,err = zk.Connect(config.Addr,time.Second*10)
+	zkConn, _, err = zk.Connect(config.Addr, time.Second*10)
 	if err != nil {
 		log.Panic(err)
 	}
 	createPath(config.BasePath)
 
-	zoo := &ZooKeeper{zkConn:zkConn,ch:make(chan *[]string,1),basepath:config.BasePath}
+	zoo := &ZooKeeper{zkConn: zkConn, ch: make(chan *[]string, 1), basepath: config.BasePath}
 	go zoo.watch()
 	return zoo
 	//return &zooKeeper{}  upds
 }
-
 
 //watched  getChilds path:value libkv  diffs  scan_deleted
 
@@ -66,14 +62,13 @@ func watchChildren(nodePath string) ([]string, <-chan zk.Event, error) {
 	return servers, ch, err
 }
 
-
 func getChildrenData(nodePath string, servers []string) ([]string, error) {
 
 	data_arr := make([]string, 0, len(servers))
 	for i := 0; i < len(servers); i++ {
 		data, _, err := zkConn.Get(nodePath + "/" + servers[i])
 		if err != nil {
-			log.Error("get.node.v.err ",err)
+			log.Error("get.node.v.err ", err)
 			continue
 		}
 		data_arr = append(data_arr, string(data))
@@ -86,7 +81,7 @@ func getChildrenData(nodePath string, servers []string) ([]string, error) {
 //watch 写 Chans
 //read     更新  srvList
 
-func (zoo *ZooKeeper) watch(){
+func (zoo *ZooKeeper) watch() {
 	for {
 		servers, ch, err := watchChildren(zoo.basepath)
 		if err != nil {
@@ -102,19 +97,18 @@ func (zoo *ZooKeeper) watch(){
 }
 
 //update srvLists  tests register  zkConns
-func (zoo *ZooKeeper)Register(data string) error {
+func (zoo *ZooKeeper) Register(data string) error {
 	regiPath := zoo.basepath
 	if zoo.basepath[len(zoo.basepath)-1:] != "/" {
 		regiPath += "/"
 	}
-	ac_path, err := zkConn.Create(regiPath, []byte(data),zk.FlagSequence|zk.FlagEphemeral, zk.WorldACL(zk.PermAll))
-	if err != nil  {
+	ac_path, err := zkConn.Create(regiPath, []byte(data), zk.FlagSequence|zk.FlagEphemeral, zk.WorldACL(zk.PermAll))
+	if err != nil {
 		return err
 	}
-	log.Debugf("zkRegister done ,(%v,%v)",ac_path,data)
+	log.Debugf("zkRegister done ,(%v,%v)", ac_path, data)
 	return nil
 }
-
 
 func createPath(path string) error {
 	currPath := ""
@@ -128,8 +122,3 @@ func createPath(path string) error {
 	}
 	return nil
 }
-
-
-
-
-
