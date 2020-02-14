@@ -60,7 +60,7 @@ func newZoo(config *ZkConfig) *ZooKeeper{
 func watchChildren(nodePath string) ([]string, <-chan zk.Event, error) {
 	servers, _, ch, err := zkConn.ChildrenW(nodePath)
 	if err == zk.ErrNoNode {
-		log.Println("znode not exist", nodePath, err)
+		log.Error("basePath not exist", nodePath, err)
 		panic(err)
 	}
 	return servers, ch, err
@@ -73,7 +73,7 @@ func getChildrenData(nodePath string, servers []string) ([]string, error) {
 	for i := 0; i < len(servers); i++ {
 		data, _, err := zkConn.Get(nodePath + "/" + servers[i])
 		if err != nil {
-			log.Println("get znode data error",)
+			log.Error("get.node.v.err ",err)
 			continue
 		}
 		data_arr = append(data_arr, string(data))
@@ -90,17 +90,12 @@ func (zoo *ZooKeeper) watch(){
 	for {
 		servers, ch, err := watchChildren(zoo.basepath)
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 			continue
 		}
 		//diffs zoo
 		d, _ := getChildrenData(zoo.basepath, servers)
-		log.Debug("getCdata")
-		select {
-		case zoo.ch <- &d:
-
-		}
-		log.Printf("got_data %v \n",d)
+		zoo.ch <- &d
 		<-ch
 		//time.Sleep(time.Second*2)
 	}
@@ -108,18 +103,15 @@ func (zoo *ZooKeeper) watch(){
 
 //update srvLists  tests register  zkConns
 func (zoo *ZooKeeper)Register(data string) error {
-	//createPath(nodePath)
-	//serverName := nodePath + "/server"
 	regiPath := zoo.basepath
 	if zoo.basepath[len(zoo.basepath)-1:] != "/" {
 		regiPath += "/"
 	}
 	ac_path, err := zkConn.Create(regiPath, []byte(data),zk.FlagSequence|zk.FlagEphemeral, zk.WorldACL(zk.PermAll))
-	if err != nil && err != zk.ErrNodeExists {
-		log.Println("create server znode err, path=", zoo.basepath, err)
-		return errors.New("create server znode err")
+	if err != nil  {
+		return err
 	}
-	log.Info("zkRegister",ac_path)
+	log.Debugf("zkRegister done ,(%v,%v)",ac_path,data)
 	return nil
 }
 

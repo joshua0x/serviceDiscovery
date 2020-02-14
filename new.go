@@ -67,7 +67,7 @@ func (client *Client) Call(serviceMethod string, args interface{}, reply interfa
 		nodeAddr = client.zoo.nodeList[index]
 	}
 	//load cache or
-	log.Info("nodeAddr",nodeAddr)
+	log.Debug("nodeAddr",nodeAddr)
 	if p,exist := client.srvMap[nodeAddr] ; exist {
 		client.RUnlock()
 		iv,err := p.Get()
@@ -87,7 +87,7 @@ func (client *Client) Call(serviceMethod string, args interface{}, reply interfa
 	}else{
 		client.RUnlock()
 		client.Lock()
-		log.Info("newChanPool ",nodeAddr)
+		log.Debug("newChanPool ",nodeAddr)
 		//newPool paras configs  func defines  ___ Dial  func called  pool
 		conf := &pool.Config{InitialCap:pconf.InitialCap,MaxCap:pconf.MaxCap,WaitTimeOut:pconf.WaitTimeOut,
 				Factory:connFac(nodeAddr),Close:rpcClose}
