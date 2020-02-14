@@ -1,7 +1,7 @@
 package serviceDiscovery
 import (
 	"net/rpc"
-	"github.com/prometheus/common/log"
+	"github.com/sirupsen/logrus"
 )
 //paras
 
