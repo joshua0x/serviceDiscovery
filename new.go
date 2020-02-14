@@ -22,7 +22,7 @@ const (
 var pconf *pool.Config
 
 type PoolOptions struct {
-	MaxCap, InitialCap,MaxIdle int
+	MaxCap, InitialCap, MaxIdle int
 }
 type SdConfig struct {
 	Zkc   ZkConfig
@@ -37,7 +37,6 @@ type Client struct {
 	zoo *ZooKeeper
 	sync.RWMutex
 }
-
 
 // init Client ,zoo  sel_ip
 //转发 selector
@@ -81,10 +80,10 @@ func (client *Client) Call(serviceMethod string, args interface{}, reply interfa
 	} else {
 		client.RUnlock()
 		client.Lock()
-		log.Debugf("newChanPool %v %v\n", nodeAddr,pconf)
+		log.Debugf("newChanPool %v %v\n", nodeAddr, pconf)
 		//newPool paras configs  func defines  ___ Dial  func called  pool
 		conf := &pool.Config{InitialCap: pconf.InitialCap, MaxCap: pconf.MaxCap,
-			Factory: connFac(nodeAddr), Close: rpcClose,MaxIdle:pconf.MaxIdle}
+			Factory: connFac(nodeAddr), Close: rpcClose, MaxIdle: pconf.MaxIdle}
 		p, e := pool.NewChannelPool(conf)
 		if e != nil {
 			log.Error(e)
@@ -113,7 +112,7 @@ func (client *Client) Call(serviceMethod string, args interface{}, reply interfa
 
 func New(config *SdConfig) *Client {
 	//zks watch mecha synced
-	pconf = &pool.Config{InitialCap: config.PoolC.InitialCap, MaxCap: config.PoolC.MaxCap,MaxIdle:config.PoolC.MaxIdle}
+	pconf = &pool.Config{InitialCap: config.PoolC.InitialCap, MaxCap: config.PoolC.MaxCap, MaxIdle: config.PoolC.MaxIdle}
 	zoo := newZoo(&config.Zkc)
 	client := Client{zoo: zoo, srvMap: make(map[string]pool.Pool)}
 	go client.watch()
