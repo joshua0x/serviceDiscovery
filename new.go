@@ -6,6 +6,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	//"github.com/fatih/pool"
 	"github.com/pkg/errors"
+	"github.com/keepeye/logrus-filename"
 	//"github.com/samuel/go-zookeeper/zk"
 
 	"sync"
@@ -27,7 +28,12 @@ type Client struct {
 	zoo *ZooKeeper
 	sync.RWMutex
 }
-//locks ip    call 拿RLOCK  . Watch LOck
+
+func init(){
+	filenameHook := filename.NewHook()
+	filenameHook.Field = "line"
+	log.AddHook(filenameHook)
+}
 
 // init Client ,zoo  sel_ip
 //转发 selector
@@ -90,7 +96,6 @@ func (client *Client) Call(serviceMethod string, args interface{}, reply interfa
 
 func New(config *ZkConfig) *Client{
 	//zks watch mecha synced
-	log.SetLevel(log.DebugLevel)
 	zoo := newZoo(config)
 	client := Client{zoo:zoo,srvMap:make(map[string]pool.Pool)}
 	go client.watch()
