@@ -1,12 +1,14 @@
 package serviceDiscovery
 import (
 	"net/rpc"
+	"github.com/prometheus/common/log"
 )
 //paras
 
 func connFac(ip string) func()(interface{},error) {
 	return func()(interface{},error){
-		return rpc.Dial("tcp",ip)
+		log.Info("fac ",ip)
+		return rpc.DialHTTP("tcp",ip)
 	}
 }
 

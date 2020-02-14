@@ -10,41 +10,50 @@ import (
 
 var zkConn *zk.Conn
 //patched srvs  srvlist
-
+// basePath
 type ZkConfig struct {
 	Addr []string
-	BasePath,SrvPath string
+	BasePath string // for watch /im/test/123 base = /im srv=test
 }
 
 
 
 //replaced
-type zooKeeper struct {
+type ZooKeeper struct {
 	zkConn *zk.Conn
-	basepath,workPath string
+	basepath string
 	nodeList []string
 	ch chan *[]string
 }
 
+func NewZooRegister(config *ZkConfig) *ZooKeeper{
+	var err error
+	zkConn ,_,err = zk.Connect(config.Addr,time.Second*10)
+	if err != nil {
+		log.Panic(err)
+	}
+	createPath(config.BasePath)
+	zoo := &ZooKeeper{zkConn:zkConn,basepath:config.BasePath}
+	return zoo
+	}
 
-func newZoo(config *ZkConfig) *zooKeeper{
+func newZoo(config *ZkConfig) *ZooKeeper{
 	//init conn path_create
 	var err error
 	zkConn ,_,err = zk.Connect(config.Addr,time.Second*10)
 	if err != nil {
 		log.Panic(err)
 	}
-	wp := config.BasePath+"/"+config.SrvPath
-	createPath(wp)
+	createPath(config.BasePath)
 
-	zoo := &zooKeeper{zkConn:zkConn,workPath:wp,ch:make(chan *[]string,1),basepath:config.BasePath}
+	zoo := &ZooKeeper{zkConn:zkConn,ch:make(chan *[]string,1),basepath:config.BasePath}
 	go zoo.watch()
 	return zoo
 	//return &zooKeeper{}  upds
 }
 
 
-//watched  getChilds path:value libkv
+//watched  getChilds path:value libkv  diffs  scan_deleted
 
 func watchChildren(nodePath string) ([]string, <-chan zk.Event, error) {
 	servers, _, ch, err := zkConn.ChildrenW(nodePath)
@@ -75,7 +84,7 @@ func getChildrenData(nodePath string, servers []string) ([]string, error) {
 //watch 写 Chans
 //read     更新  srvList
 
-func (zoo *zooKeeper) watch(){
+func (zoo *ZooKeeper) watch(){
 	for {
 		servers, ch, err := watchChildren(zoo.basepath)
 		if err != nil {
@@ -96,12 +105,16 @@ func (zoo *zooKeeper) watch(){
 }
 
 //update srvLists  tests register  zkConns
-func (zoo *zooKeeper)Register(data string) error {
+func (zoo *ZooKeeper)Register(data string) error {
 	//createPath(nodePath)
 	//serverName := nodePath + "/server"
-	ac_path, err := zkConn.Create(zoo.workPath, []byte(data),zk.FlagSequence|zk.FlagEphemeral, zk.WorldACL(zk.PermAll))
+	regiPath := zoo.basepath
+	if zoo.basepath[len(zoo.basepath)-1:] != "/" {
+		regiPath += "/"
+	}
+	ac_path, err := zkConn.Create(regiPath, []byte(data),zk.FlagSequence|zk.FlagEphemeral, zk.WorldACL(zk.PermAll))
 	if err != nil && err != zk.ErrNodeExists {
-		log.Println("create server znode err, path=", zoo.workPath, err)
+		log.Println("create server znode err, path=", zoo.basepath, err)
 		return errors.New("create server znode err")
 	}
 	log.Info("zkRegister",ac_path)

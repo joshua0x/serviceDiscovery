@@ -24,7 +24,7 @@ type Client struct {
 	//RpcClient *rpc.Client
 	srvMap map[string]pool.Pool
 	//srvName string ipList
-	zoo *zooKeeper
+	zoo *ZooKeeper
 	sync.RWMutex
 }
 //locks ip    call 拿RLOCK  . Watch LOck
@@ -38,15 +38,21 @@ func (client *Client) Call(serviceMethod string, args interface{}, reply interfa
 		cli *rpc.Client
 		nodeAddr string
 	)
+
+	client.RLock()
+	defer client.RUnlock()
+	//todo error_retry
 	if selector == Designate {
 		nodeAddr = selPara
 	}else{
+		if len(client.zoo.nodeList) == 0  {
+			return errors.New("srv down")
+		}
 		index := rand.Intn(len(client.zoo.nodeList))
 		nodeAddr = client.zoo.nodeList[index]
 	}
-	//load cache or new
-	client.RLock()
-	defer client.RUnlock()
+	//load cache or
+	log.Info("nodeAddr",nodeAddr)
 	if p,exist := client.srvMap[nodeAddr] ; exist {
 		iv,err := p.Get()
 		if err != nil {
@@ -73,6 +79,7 @@ func (client *Client) Call(serviceMethod string, args interface{}, reply interfa
 		}else{
 			cli = iv.(*rpc.Client)
 			err := cli.Call(serviceMethod,args,reply)
+			//todo conn err close conn
 			p.Put(iv)
 			return err
 		}
@@ -98,6 +105,19 @@ func (client *Client) watch(){
 		case data := <- client.zoo.ch:
 			client.Lock()
 			client.zoo.nodeList = *data
+			//del srvCaches []str
+			for k,_ := range client.srvMap{
+				found := false
+				for _,node := range *data{
+					if node == k {
+						found = true
+						break
+					}
+				}
+				if !found{
+					delete(client.srvMap,k)
+				}
+			}
 			log.Infof("client.node %v\n",client.zoo.nodeList)
 			client.Unlock()
 		}
